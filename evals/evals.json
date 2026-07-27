@@ -1,6 +1,9 @@
 {
   "skill_name": "sudis-aaai-submission-reviewer",
   "evals": [
+    {"id": "reviewer-score", "prompt": "Act as a senior AAAI reviewer. Score this paper 1-10, rank critical weaknesses, give the minimum fix for each, and say whether it is ready.", "expected_output": "Run reviewer mode only. Produce five evidence-based lenses, a ranked advisory risk list, minimum fixes, and READY YES, ALMOST, or NO without creating or changing Gates."},
+    {"id": "reviewer-attack-patterns", "prompt": "Stress-test this paper before AAAI: look for unfair budgets, weak baselines, missing ablations, unreliable LLM judging, and claims the tables do not support.", "expected_output": "Use reviewer mode, ask only evidence-grounded skeptical questions, and create a defense board rather than a compliance verdict."},
+    {"id": "mixed-mode", "prompt": "Review this AAAI paper critically and also verify anonymity, format, and advisor submission gates.", "expected_output": "Run reviewer and gatekeeper outputs separately. Reviewer concerns remain advisory; Gatekeeper independently evaluates G0-G7."},
     {"id": "latex-full-audit", "prompt": "Audit this AAAI-27 LaTeX project with main.pdf, supplement.pdf, checklist, and supplied identity terms.", "expected_output": "Run all gates, report exact evidence, produce screenshots, and do not edit the manuscript."},
     {"id": "pdf-only", "prompt": "Audit this PDF before AAAI submission.", "expected_output": "Inspect PDF-level properties but block G1 and any source-only checks; recommend LaTeX intake."},
     {"id": "anonymous-repo", "prompt": "The abstract links to Anonymous GitHub. Is it ready?", "expected_output": "Fail G3 and cite AAAI-27's ban on web supplementary pointers."},

@@ -15,9 +15,12 @@ class StructureTests(unittest.TestCase):
         self.assertLessEqual(len(text.splitlines()), 500)
         self.assertNotIn("pre-submission-reviewer", text)
         self.assertNotIn("research-paper-writing", text)
+        self.assertIn("## Reviewer mode", text)
+        self.assertIn("## Gatekeeper mode", text)
+        self.assertIn("Never changes Gates", text)
 
     def test_references_and_scripts_exist(self):
-        for name in ("aaai27-main-rules.md", "gates-and-approval.md", "writing-and-visual-review.md"):
+        for name in ("aaai27-main-rules.md", "gates-and-approval.md", "writing-and-visual-review.md", "reviewer-mode.md"):
             self.assertTrue((SKILL / "references" / name).exists())
         for name in ("audit.py", "gate_tool.py", "bootstrap.py"):
             self.assertTrue((SKILL / "scripts" / name).exists())
@@ -25,7 +28,11 @@ class StructureTests(unittest.TestCase):
     def test_installer_and_evals_are_present(self):
         self.assertTrue((ROOT / "scripts" / "install.sh").stat().st_mode & stat.S_IXUSR)
         data = json.loads((ROOT / "evals" / "evals.json").read_text())
-        self.assertGreaterEqual(len(data["evals"]), 8)
+        self.assertGreaterEqual(len(data["evals"]), 11)
+        ids = {item["id"] for item in data["evals"]}
+        self.assertTrue({"reviewer-score", "reviewer-attack-patterns", "mixed-mode"}.issubset(ids))
+        for name in ("REVIEW_REPORT.template.md", "DEFENSE_BOARD.template.md"):
+            self.assertTrue((SKILL / "assets" / name).exists())
 
 
 if __name__ == "__main__":
