@@ -35,11 +35,15 @@ Run the audit:
 ```bash
 <skill-root>/.venv/bin/python <skill-root>/scripts/audit.py \
   --input <latex-project-or-pdf> \
+  --supplement <supplementary-pdf-or-archive> \
+  --checklist <completed-reproducibility-checklist> \
   --identity-term '<term>' \
   --output <audit-directory>
 ```
 
-The script never edits the submission. It creates `AUDIT_REPORT.md`, `FINDINGS.json`, `RULES_SNAPSHOT.md`, `GATE_STATE.json`, a manifest, and screenshots.
+The script never edits the submission. It creates `AUDIT_REPORT.md`, `FINDINGS.json`, `RULES_SNAPSHOT.md`, `GATE_STATE.json`, a manifest, and screenshots. G4 starts blocked until the checklist and supplementary materials are manually reconciled with the paper. The final manifest binds every declared supplementary and checklist file.
+
+For LaTeX projects, compilation happens in an isolated temporary copy by default. Do not use `--no-compile` for a release audit: it leaves G1 blocked.
 
 ## Gates
 

@@ -44,12 +44,33 @@ class AuditTests(unittest.TestCase):
             original = "\\usepackage[submission]{aaai2027}\n\\setcounter{secnumdepth}{2}\n"
             main.write_text(original)
             output = Path(tmp) / "audit"
-            subprocess.run(["python3", str(SCRIPT), "--input", str(project), "--identity-term", "Example University", "--output", str(output)], check=True)
+            subprocess.run(["python3", str(SCRIPT), "--input", str(project), "--no-compile", "--identity-term", "Example University", "--output", str(output)], check=True)
             self.assertEqual(main.read_text(), original)
             self.assertTrue((output / "AUDIT_REPORT.md").exists())
             state = json.loads((output / "GATE_STATE.json").read_text())
             self.assertEqual(state["gates"]["G1"]["status"], "BLOCKED")
             self.assertEqual(state["gates"]["G5"]["status"], "BLOCKED")
+
+    def test_active_source_ignores_unincluded_drafts_and_binds_supplement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "paper"
+            project.mkdir()
+            (project / "main.tex").write_text("\\usepackage[submission]{aaai2027}\n\\setcounter{secnumdepth}{2}\n\\input{sections/live}\n")
+            (project / "draft.tex").write_text("\\resizebox{a}{b}{c}\n")
+            sections = project / "sections"
+            sections.mkdir()
+            (sections / "live.tex").write_text("Live text.\n")
+            supplement = Path(tmp) / "supplement.zip"
+            supplement.write_bytes(b"supplement")
+            checklist = Path(tmp) / "checklist.pdf"
+            checklist.write_bytes(b"checklist")
+            output = Path(tmp) / "audit"
+            subprocess.run(["python3", str(SCRIPT), "--input", str(project), "--no-compile", "--identity-term", "Example University", "--supplement", str(supplement), "--checklist", str(checklist), "--output", str(output)], check=True)
+            findings = json.loads((output / "FINDINGS.json").read_text())
+            self.assertFalse(any(item["rule"] == "Forbidden command" for item in findings))
+            state = json.loads((output / "GATE_STATE.json").read_text())
+            self.assertIn(str(supplement.resolve()), state["manifest"])
+            self.assertIn(str(checklist.resolve()), state["manifest"])
 
     def test_approval_requires_all_pass_and_unchanged_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:

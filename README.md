@@ -21,12 +21,16 @@ LaTeX projects are strongly recommended:
 ```bash
 sudis-aaai-submission-reviewer/.venv/bin/python sudis-aaai-submission-reviewer/scripts/audit.py \
   --input /path/to/paper \
+  --supplement /path/to/supplement.pdf \
+  --checklist /path/to/ReproducibilityChecklist.pdf \
   --identity-term 'Example University' \
   --identity-term 'example-lab' \
   --output /path/to/paper/review/aaai27-audit
 ```
 
-Provide all author names, affiliations, labs, handles, email domains, repository names, and grant identifiers as `--identity-term` values. A PDF-only audit is supported but cannot pass source-integrity checks.
+Provide all author names, affiliations, labs, handles, email domains, repository names, and grant identifiers as `--identity-term` values. Pass the exact supplementary document/archive and completed checklist so G7 binds them into the approval manifest. A PDF-only audit is supported but cannot pass source-integrity checks.
+
+For LaTeX intake, the audit compiles an isolated temporary copy by default. This is required for G1 and never writes into the student's project. `--no-compile` is diagnostic-only and leaves G1 blocked.
 
 ## Required Gate workflow
 

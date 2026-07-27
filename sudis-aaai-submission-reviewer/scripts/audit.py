@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -70,14 +71,37 @@ def find_input(path: Path, main_name: str | None) -> tuple[Path | None, Path | N
     return tex, pdf, tracked
 
 
-def main_source(tex_files: list[Path]) -> str:
-    parts = []
-    for path in tex_files:
-        try:
-            parts.append(f"\n% FILE: {path}\n" + uncomment(path.read_text(encoding="utf-8", errors="replace")))
-        except OSError:
-            continue
-    return "\n".join(parts)
+def drop_false_blocks(text: str) -> str:
+    """Handle the common template-only \\iffalse ... \\fi construct conservatively."""
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\\iffalse.*?\\fi", "", text, flags=re.S)
+    return text
+
+
+def active_source(main_tex: Path | None) -> tuple[str, list[Path]]:
+    """Follow active \\input and \\include paths from the chosen root, once each."""
+    if not main_tex:
+        return "", []
+    visited: set[Path] = set()
+    parts: list[str] = []
+
+    def visit(path: Path) -> None:
+        path = path.resolve()
+        if path in visited or not path.exists() or path.suffix != ".tex":
+            return
+        visited.add(path)
+        text = drop_false_blocks(uncomment(path.read_text(encoding="utf-8", errors="replace")))
+        parts.append(f"\n% FILE: {path}\n{text}")
+        for target in re.findall(r"\\(?:input|include)\{([^}]+)\}", text):
+            candidate = path.parent / target
+            if not candidate.suffix:
+                candidate = candidate.with_suffix(".tex")
+            visit(candidate)
+
+    visit(main_tex)
+    return "\n".join(parts), sorted(visited)
 
 
 def add(findings: list[dict], gate: str, severity: str, rule: str, evidence: str, fix: str, source: str = "official") -> None:
@@ -185,16 +209,44 @@ def pdf_checks(pdf: Path | None, out: Path, findings: list[dict], identities: li
     return result
 
 
-def gate_statuses(findings: list[dict], tex: Path | None, pdf: Path | None, identities: list[str]) -> dict:
+def compile_check(project: Path, main_tex: Path | None, enabled: bool, findings: list[dict]) -> bool:
+    """Compile an isolated copy so a passing G1 proves the source is buildable."""
+    if not main_tex:
+        return False
+    if not enabled:
+        add(findings, "G1", "BLOCKED", "Isolated source compilation", "Compilation was disabled.", "Run the audit without `--no-compile` before final approval.")
+        return False
+    executable = shutil.which("latexmk")
+    if not executable:
+        add(findings, "G1", "BLOCKED", "Isolated source compilation", "latexmk is unavailable.", "Install a PDFLaTeX/latexmk environment and rerun the audit.")
+        return False
+    with tempfile.TemporaryDirectory(prefix="sudis-aaai27-build-") as temp:
+        copied = Path(temp) / "paper"
+        shutil.copytree(project, copied, ignore=shutil.ignore_patterns(".git", ".venv", "review", "build", "out", "*.aux", "*.log", "*.bbl", "*.blg", "*.fls", "*.fdb_latexmk"))
+        relative_main = main_tex.resolve().relative_to(project.resolve())
+        run = subprocess.run([executable, "-pdf", "-interaction=nonstopmode", "-halt-on-error", str(relative_main)], cwd=copied, capture_output=True, text=True, check=False)
+        if run.returncode:
+            tail = (run.stdout + "\n" + run.stderr)[-1200:]
+            add(findings, "G1", "CRITICAL", "Isolated source compilation", "latexmk failed in an isolated copy: " + tail, "Fix the first LaTeX error and rerun until the isolated build succeeds.")
+            return False
+    return True
+
+
+def gate_statuses(findings: list[dict], tex: Path | None, pdf: Path | None, identities: list[str], checklist: Path | None, compiled: bool) -> dict:
     gates = {f"G{i}": {"status": "PASS", "reason": "Deterministic checks passed."} for i in range(8)}
     gates["G5"] = {"status": "BLOCKED", "reason": "Manual teaser and visual-quality review is required."}
     gates["G6"] = {"status": "BLOCKED", "reason": "Manual claim-evidence and adversarial review is required."}
+    gates["G4"] = {"status": "BLOCKED", "reason": "Manual reproducibility-checklist and supplementary-material review is required."}
     if not tex:
         gates["G1"] = {"status": "BLOCKED", "reason": "PDF-only input cannot pass source-integrity checks."}
+    elif not compiled:
+        gates["G1"] = {"status": "BLOCKED", "reason": "Current source was not successfully compiled in isolation."}
     if not pdf:
         gates["G2"] = {"status": "BLOCKED", "reason": "No compiled PDF is available."}
     if not identities:
         gates["G3"] = {"status": "BLOCKED", "reason": "No identity terms supplied for strict anonymity review."}
+    if not checklist:
+        gates["G4"] = {"status": "BLOCKED", "reason": "No reproducibility checklist was supplied or discovered."}
     for finding in findings:
         gate = finding["gate"]
         if finding["severity"] == "BLOCKED":
@@ -240,6 +292,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--main", help="Main TeX filename relative to --input")
+    parser.add_argument("--no-compile", action="store_true", help="Skip isolated compilation; G1 will remain blocked")
+    parser.add_argument("--supplement", action="append", type=Path, default=[], help="Supplementary PDF, archive, or directory to bind into the final manifest")
+    parser.add_argument("--checklist", type=Path, help="Completed reproducibility checklist to bind into the final manifest")
     parser.add_argument("--identity-term", action="append", default=[])
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -247,16 +302,30 @@ def main() -> int:
     out = args.output or source_root / "review" / f"aaai27-audit-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     out.mkdir(parents=True, exist_ok=False)
     tex, pdf, tracked = find_input(args.input, args.main)
-    tex_files = find_files(args.input, ".tex") if args.input.is_dir() else []
-    source = main_source(tex_files)
+    source, active_tex_files = active_source(tex)
     findings: list[dict] = []
     source_checks(source, findings)
+    compiled = compile_check(args.input, tex, not args.no_compile, findings) if args.input.is_dir() else False
     for term in args.identity_term:
         if term and term.lower() in source.lower():
             add(findings, "G3", "CRITICAL", "Identity-term leak", f"Found supplied identity term `{term}` in active source.", "Remove or anonymize this term and regenerate the PDF.")
     pdf_result = pdf_checks(pdf, out, findings, args.identity_term)
-    manifest = {str(path.resolve()): sha256(path) for path in tracked if path.exists() and path.is_file()}
-    gates = gate_statuses(findings, tex, pdf, args.identity_term)
+    checklist = args.checklist
+    if not checklist and args.input.is_dir():
+        candidates = [path for path in args.input.rglob("*") if path.is_file() and "reproducibility" in path.name.lower() and not any(part in EXCLUDED_PARTS for part in path.parts)]
+        checklist = candidates[0] if candidates else None
+    bound = list(active_tex_files) + [path for path in tracked if path.suffix in {".bib", ".pdf"}]
+    for item in [*args.supplement, checklist]:
+        if not item:
+            continue
+        if item.is_dir():
+            bound.extend(path for path in item.rglob("*") if path.is_file())
+        elif item.exists():
+            bound.append(item)
+        else:
+            add(findings, "G4", "BLOCKED", "Declared supplementary input", f"Declared path does not exist: {item}", "Provide the exact supplementary or checklist file before approval.")
+    manifest = {str(path.resolve()): sha256(path) for path in dict.fromkeys(bound) if path.exists() and path.is_file()}
+    gates = gate_statuses(findings, tex, pdf, args.identity_term, checklist, compiled)
     write_report(out, findings, gates, manifest, pdf_result)
     print(out)
     return 0
