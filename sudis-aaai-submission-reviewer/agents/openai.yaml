@@ -1,0 +1,4 @@
+interface:
+  display_name: "SuDIS AAAI Submission Gatekeeper"
+  short_description: "Gate-based AAAI-27 submission audit"
+  default_prompt: "Use $sudis-aaai-submission-reviewer to audit this AAAI-27 Main Track submission and prepare the advisor approval packet."
