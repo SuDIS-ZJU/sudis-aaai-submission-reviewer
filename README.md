@@ -30,7 +30,7 @@ sudis-aaai-submission-reviewer/.venv/bin/python sudis-aaai-submission-reviewer/s
 
 Provide all author names, affiliations, labs, handles, email domains, repository names, and grant identifiers as `--identity-term` values. Pass the exact supplementary document/archive and completed checklist so G7 binds them into the approval manifest. A PDF-only audit is supported but cannot pass source-integrity checks.
 
-For LaTeX intake, the audit compiles an isolated temporary copy by default. This is required for G1 and never writes into the student's project. `--no-compile` is diagnostic-only and leaves G1 blocked.
+For LaTeX intake, the audit compiles an isolated temporary copy by default and compares its normalized extracted-text fingerprint to the submitted PDF. This is required for G1 and never writes into the student's project. `--no-compile` is diagnostic-only and leaves G1 blocked.
 
 ## Required Gate workflow
 
@@ -45,12 +45,13 @@ For LaTeX intake, the audit compiles an isolated temporary copy by default. This
 | G6 | Logic, evidence, and overclaim |
 | G7 | Final package consistency |
 
-The deterministic script creates G5 and G6 as blocked until an agent or reviewer has inspected visual material and claims. Record that review only with explicit evidence:
+The deterministic script creates G5 and G6 as blocked until an agent or reviewer has inspected visual material and claims. Fill the generated `manual/G5_VISUAL_REVIEW.json` or `manual/G6_CLAIM_EVIDENCE.json`; G5/G6 cannot be marked PASS without one of these structured, hash-bound records:
 
 ```bash
 sudis-aaai-submission-reviewer/.venv/bin/python sudis-aaai-submission-reviewer/scripts/gate_tool.py set-gate \
   --audit-dir /path/to/audit \
   --gate G5 --status PASS \
+  --evidence-file /path/to/audit/manual/G5_VISUAL_REVIEW.json \
   --evidence 'Reviewed page-01.png and all figures: teaser is self-contained; captions, font sizes, and axes are readable.'
 ```
 

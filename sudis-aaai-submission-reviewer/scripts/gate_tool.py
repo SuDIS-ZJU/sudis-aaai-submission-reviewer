@@ -61,6 +61,7 @@ def main() -> int:
     set_gate.add_argument("--gate", choices=[f"G{i}" for i in range(8)], required=True)
     set_gate.add_argument("--status", choices=["PASS", "FAIL", "BLOCKED"], required=True)
     set_gate.add_argument("--evidence", required=True)
+    set_gate.add_argument("--evidence-file", type=Path, help="Required JSON review record for G5 and G6")
     approve = sub.add_parser("approve")
     approve.add_argument("--audit-dir", required=True, type=Path)
     approve.add_argument("--approver", required=True)
@@ -71,7 +72,20 @@ def main() -> int:
     directory = args.audit_dir.resolve()
     state_path, state = load(directory)
     if args.command == "set-gate":
-        state["gates"][args.gate] = {"status": args.status, "reason": args.evidence, "manual_reviewed_at": datetime.now(timezone.utc).isoformat()}
+        record = {"status": args.status, "reason": args.evidence, "manual_reviewed_at": datetime.now(timezone.utc).isoformat()}
+        if args.gate in {"G5", "G6"}:
+            if not args.evidence_file or not args.evidence_file.exists():
+                raise SystemExit("G5 and G6 require --evidence-file using the audit directory manual JSON template.")
+            try:
+                payload = json.loads(args.evidence_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as error:
+                raise SystemExit("Evidence file is not valid JSON: " + str(error))
+            key = "items" if args.gate == "G5" else "claims"
+            if not payload.get("reviewer") or not payload.get("reviewed_at") or not isinstance(payload.get(key), list) or not payload[key]:
+                raise SystemExit(f"G{args.gate[-1]} evidence must include reviewer, reviewed_at, and non-empty {key}.")
+            record["evidence_file"] = str(args.evidence_file.resolve())
+            record["evidence_sha256"] = digest(args.evidence_file)
+        state["gates"][args.gate] = record
         state["approval"] = None
         save(state_path, state)
         dashboard(directory, state, "GATE_DASHBOARD.png")

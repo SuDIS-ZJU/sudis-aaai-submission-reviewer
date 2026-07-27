@@ -43,7 +43,7 @@ Run the audit:
 
 The script never edits the submission. It creates `AUDIT_REPORT.md`, `FINDINGS.json`, `RULES_SNAPSHOT.md`, `GATE_STATE.json`, a manifest, and screenshots. G4 starts blocked until the checklist and supplementary materials are manually reconciled with the paper. The final manifest binds every declared supplementary and checklist file.
 
-For LaTeX projects, compilation happens in an isolated temporary copy by default. Do not use `--no-compile` for a release audit: it leaves G1 blocked.
+For LaTeX projects, compilation happens in an isolated temporary copy by default. The generated PDF's normalized text fingerprint must match the supplied PDF. Do not use `--no-compile` for a release audit: it leaves G1 blocked.
 
 ## Gates
 
@@ -66,7 +66,7 @@ Read `references/gates-and-approval.md` before judging gates. All seven gates mu
 
 1. Run the deterministic audit and inspect `AUDIT_REPORT.md`.
 2. Render and inspect the first page plus each page selected as high risk. Verify that page one has a self-explanatory teaser and that visual claims match the results.
-3. Read `references/writing-and-visual-review.md` for G5 and G6. Build a claim-evidence map for every major Abstract and Introduction claim. Downgrade or remove unsupported claims rather than inventing evidence.
+3. Read `references/writing-and-visual-review.md` for G5 and G6. Fill `manual/G5_VISUAL_REVIEW.json` and `manual/G6_CLAIM_EVIDENCE.json`; use them when recording manual Gate evidence. Downgrade or remove unsupported claims rather than inventing evidence.
 4. Re-run the audit after the student changes the paper. Never claim all gates pass based on an old report.
 5. Once G0--G7 pass, give the student `GATE_DASHBOARD.png`, `APPROVAL_PACKET.md`, and screenshots to show the advisor. State exactly: `AWAITING ADVISOR APPROVAL. NOT YET APPROVED FOR SUBMISSION.`
 

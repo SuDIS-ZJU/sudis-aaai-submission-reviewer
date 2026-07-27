@@ -88,6 +88,20 @@ class AuditTests(unittest.TestCase):
             verify = subprocess.run(["python3", str(GATE_TOOL), "verify", "--audit-dir", str(audit)], check=False)
             self.assertNotEqual(verify.returncode, 0)
 
+    def test_visual_gate_requires_structured_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = Path(tmp) / "audit"
+            audit.mkdir()
+            state = {"gates": {f"G{i}": {"status": "BLOCKED", "reason": "pending"} for i in range(8)}, "manifest": {}, "approval": None}
+            (audit / "GATE_STATE.json").write_text(json.dumps(state))
+            missing = subprocess.run(["python3", str(GATE_TOOL), "set-gate", "--audit-dir", str(audit), "--gate", "G5", "--status", "PASS", "--evidence", "reviewed"], check=False)
+            self.assertNotEqual(missing.returncode, 0)
+            evidence = audit / "g5.json"
+            evidence.write_text(json.dumps({"reviewer": "Reviewer", "reviewed_at": "2026-07-27", "items": [{"id": "page-01", "status": "pass", "evidence": "readable"}]}))
+            subprocess.run(["python3", str(GATE_TOOL), "set-gate", "--audit-dir", str(audit), "--gate", "G5", "--status", "PASS", "--evidence", "reviewed", "--evidence-file", str(evidence)], check=True)
+            saved = json.loads((audit / "GATE_STATE.json").read_text())
+            self.assertIn("evidence_sha256", saved["gates"]["G5"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -209,7 +209,16 @@ def pdf_checks(pdf: Path | None, out: Path, findings: list[dict], identities: li
     return result
 
 
-def compile_check(project: Path, main_tex: Path | None, enabled: bool, findings: list[dict]) -> bool:
+def pdf_text_fingerprint(path: Path) -> str | None:
+    try:
+        from pypdf import PdfReader
+        text = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+        return hashlib.sha256(re.sub(r"\s+", " ", text).strip().encode("utf-8")).hexdigest()
+    except Exception:
+        return None
+
+
+def compile_check(project: Path, main_tex: Path | None, submitted_pdf: Path | None, enabled: bool, findings: list[dict]) -> bool:
     """Compile an isolated copy so a passing G1 proves the source is buildable."""
     if not main_tex:
         return False
@@ -229,6 +238,15 @@ def compile_check(project: Path, main_tex: Path | None, enabled: bool, findings:
             tail = (run.stdout + "\n" + run.stderr)[-1200:]
             add(findings, "G1", "CRITICAL", "Isolated source compilation", "latexmk failed in an isolated copy: " + tail, "Fix the first LaTeX error and rerun until the isolated build succeeds.")
             return False
+        compiled_pdf = (copied / relative_main).with_suffix(".pdf")
+        if submitted_pdf and compiled_pdf.exists():
+            submitted_fingerprint = pdf_text_fingerprint(submitted_pdf)
+            compiled_fingerprint = pdf_text_fingerprint(compiled_pdf)
+            if not submitted_fingerprint or not compiled_fingerprint:
+                add(findings, "G1", "BLOCKED", "Source/PDF fingerprint", "Could not extract comparable text fingerprints from both PDFs.", "Install pypdf and rerun the audit.")
+                return False
+            if submitted_fingerprint != compiled_fingerprint:
+                add(findings, "G1", "CRITICAL", "Source/PDF fingerprint", "The supplied PDF text does not match the isolated build from current source.", "Upload the PDF produced from the audited source, then rerun all gates.")
     return True
 
 
@@ -275,6 +293,10 @@ def write_report(out: Path, findings: list[dict], gates: dict, manifest: dict, p
     packet += [f"| {gate} | {data['status']} |" for gate, data in gates.items()]
     packet += ["", "Status: `NOT READY` unless every row is PASS. Do not run approval before oral advisor confirmation."]
     (out / "APPROVAL_PACKET.md").write_text("\n".join(packet) + "\n", encoding="utf-8")
+    manual = out / "manual"
+    manual.mkdir(exist_ok=True)
+    (manual / "G5_VISUAL_REVIEW.json").write_text(json.dumps({"reviewer": "", "reviewed_at": "", "items": [{"id": "page-01-teaser", "status": "pass/fail", "evidence": ""}, {"id": "figures-and-tables", "status": "pass/fail", "evidence": ""}]}, indent=2) + "\n", encoding="utf-8")
+    (manual / "G6_CLAIM_EVIDENCE.json").write_text(json.dumps({"reviewer": "", "reviewed_at": "", "claims": [{"claim": "", "location": "abstract/introduction", "evidence": "table/figure/theorem", "status": "supported/needs_revision"}]}, indent=2) + "\n", encoding="utf-8")
     try:
         from PIL import Image, ImageDraw
         image = Image.new("RGB", (1200, 150 + len(gates) * 54), "white")
@@ -305,7 +327,7 @@ def main() -> int:
     source, active_tex_files = active_source(tex)
     findings: list[dict] = []
     source_checks(source, findings)
-    compiled = compile_check(args.input, tex, not args.no_compile, findings) if args.input.is_dir() else False
+    compiled = compile_check(args.input, tex, pdf, not args.no_compile, findings) if args.input.is_dir() else False
     for term in args.identity_term:
         if term and term.lower() in source.lower():
             add(findings, "G3", "CRITICAL", "Identity-term leak", f"Found supplied identity term `{term}` in active source.", "Remove or anonymize this term and regenerate the PDF.")
