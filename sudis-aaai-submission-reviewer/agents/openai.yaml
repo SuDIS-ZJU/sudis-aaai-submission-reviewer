@@ -1,4 +1,4 @@
 interface:
   display_name: "SuDIS AAAI Reviewer & Gatekeeper"
-  short_description: "AAAI-27 reviewer simulation and submission gates"
-  default_prompt: "Use $sudis-aaai-submission-reviewer in reviewer mode to stress-test this AAAI-27 paper, then in gatekeeper mode to prepare the advisor approval packet."
+  short_description: "Quick fixes, reviewer simulation, and AAAI-27 gates"
+  default_prompt: "Use $sudis-aaai-submission-reviewer in quick mode to give this AAAI-27 paper its five highest-priority fixes."

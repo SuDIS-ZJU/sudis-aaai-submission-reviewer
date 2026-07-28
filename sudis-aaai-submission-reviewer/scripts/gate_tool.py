@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,8 +36,31 @@ def unchanged(state: dict) -> list[str]:
     return changed
 
 
+def history_snapshot(directory: Path, paths: list[Path]) -> Path:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    target = directory / "history" / stamp
+    target.mkdir(parents=True, exist_ok=False)
+    for path in paths:
+        if path.exists():
+            shutil.copy2(path, target / path.name)
+    return target
+
+
+def atomic_text(path: Path, text: str) -> None:
+    pending = path.with_name(path.stem + ".pending-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ") + path.suffix)
+    with pending.open("x", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(pending, path)
+    if path.read_text(encoding="utf-8") != text:
+        raise SystemExit("Atomic write verification failed: " + str(path))
+
+
 def save(path: Path, state: dict) -> None:
-    path.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    text = json.dumps(state, indent=2, ensure_ascii=False) + "\n"
+    json.loads(text)
+    atomic_text(path, text)
 
 
 def dashboard(directory: Path, state: dict, filename: str) -> None:
@@ -48,9 +73,12 @@ def dashboard(directory: Path, state: dict, filename: str) -> None:
         for index, row in enumerate(rows):
             color = "#0a7d32" if "PASS" in row or "APPROVED" in row else "#b42318" if "FAIL" in row or "BLOCKED" in row else "#222222"
             draw.text((40, 32 + index * 42), row, fill=color)
-        image.save(directory / filename)
+        target = directory / filename
+        pending = target.with_name(target.stem + ".pending-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ") + target.suffix)
+        image.save(pending)
+        os.replace(pending, target)
     except ImportError:
-        (directory / filename.replace(".png", ".txt")).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        atomic_text(directory / filename.replace(".png", ".txt"), "\n".join(rows) + "\n")
 
 
 def main() -> int:
@@ -72,6 +100,8 @@ def main() -> int:
     directory = args.audit_dir.resolve()
     state_path, state = load(directory)
     if args.command == "set-gate":
+        if args.status == "PASS" and state["gates"][args.gate].get("locked"):
+            raise SystemExit(f"Cannot pass {args.gate}: a deterministic failure is locked. Correct the input and rerun the release audit.")
         record = {"status": args.status, "reason": args.evidence, "manual_reviewed_at": datetime.now(timezone.utc).isoformat()}
         if args.gate in {"G5", "G6"}:
             if not args.evidence_file or not args.evidence_file.exists():
@@ -83,8 +113,20 @@ def main() -> int:
             key = "items" if args.gate == "G5" else "claims"
             if not payload.get("reviewer") or not payload.get("reviewed_at") or not isinstance(payload.get(key), list) or not payload[key]:
                 raise SystemExit(f"G{args.gate[-1]} evidence must include reviewer, reviewed_at, and non-empty {key}.")
+            if args.gate == "G6" and args.status == "PASS":
+                unresolved = set(state.get("citation_audit", {}).get("unresolved_keys", []))
+                citation_rows = payload.get("citations", [])
+                resolved = {
+                    row.get("key")
+                    for row in citation_rows
+                    if row.get("status") in {"manual_verified", "corrected"} and str(row.get("evidence", "")).strip()
+                }
+                missing = sorted(unresolved - resolved)
+                if missing:
+                    raise SystemExit("G6 cannot pass until these citations have authoritative manual evidence: " + ", ".join(missing))
             record["evidence_file"] = str(args.evidence_file.resolve())
             record["evidence_sha256"] = digest(args.evidence_file)
+        history_snapshot(directory, [state_path, directory / "GATE_DASHBOARD.png"])
         state["gates"][args.gate] = record
         state["approval"] = None
         save(state_path, state)
@@ -101,9 +143,10 @@ def main() -> int:
         raise SystemExit("Cannot approve: every gate must be PASS.")
     if changed:
         raise SystemExit("Cannot approve: tracked files changed since audit: " + ", ".join(changed))
+    history_snapshot(directory, [state_path, directory / "FINAL_APPROVAL.md", directory / "FINAL_APPROVED.png"])
     state["approval"] = {"status": "APPROVED", "mode": "oral approval, self-recorded", "approver": args.approver, "confirmation": args.confirmation, "approved_at": datetime.now(timezone.utc).isoformat()}
     save(state_path, state)
-    (directory / "FINAL_APPROVAL.md").write_text("# Final Approval\n\nApproved for submission for this exact manifest.\n\n- Mode: oral approval, self-recorded\n- Approver: " + args.approver + "\n- Confirmation: " + args.confirmation + "\n", encoding="utf-8")
+    atomic_text(directory / "FINAL_APPROVAL.md", "# Final Approval\n\nApproved for submission for this exact manifest.\n\n- Mode: oral approval, self-recorded\n- Approver: " + args.approver + "\n- Confirmation: " + args.confirmation + "\n")
     dashboard(directory, state, "FINAL_APPROVED.png")
     return 0
 

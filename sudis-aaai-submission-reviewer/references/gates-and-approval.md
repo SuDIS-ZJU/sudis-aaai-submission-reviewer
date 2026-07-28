@@ -2,9 +2,9 @@
 
 ## Statuses
 
-`PASS` means every applicable check has evidence. `FAIL` means a violation exists. `BLOCKED` means missing source, PDF, identity terms, manual inspection, or a required tool. `NOT_APPLICABLE` is allowed only for a documented sub-check, never as a shortcut around an entire gate.
+`PASS` means every applicable check has evidence. `FAIL` means a verified violation exists. `BLOCKED` means missing input, unresolved authoritative verification, manual inspection, or a required tool. Warnings with Gate effect `NONE` may coexist with PASS.
 
-All G0--G7 must be `PASS` before advisor review. There are no waivers.
+Every finding declares `gate_effect` as `FAIL`, `BLOCK`, or `NONE`. Deterministic `FAIL` findings lock the Gate until the input is corrected and the release audit is rerun. All G0--G7 must be `PASS` before advisor review.
 
 ## Evidence expected per gate
 
@@ -16,7 +16,7 @@ All G0--G7 must be `PASS` before advisor review. There are no waivers.
 | G3 | Metadata, identity-term scan, URL/link scan |
 | G4 | Appendix reference map, supplementary inventory, checklist status |
 | G5 | First-page render, high-risk page renders, figure/font/bitmap report |
-| G6 | Claim-evidence map, adversarial findings, full style scan |
+| G6 | Claim-evidence map, citation audit, adversarial findings, full style scan |
 | G7 | Final manifest and unchanged-hash verification |
 
 ## Advisor workflow
@@ -26,3 +26,9 @@ All G0--G7 must be `PASS` before advisor review. There are no waivers.
 3. Only after approval may the student run `gate_tool.py approve`.
 4. `FINAL_APPROVED.png` is a release token for this exact file manifest, not a substitute for the advisor's judgment and not proof of OpenReview submission.
 5. Any changed input hash invalidates the token and requires a new audit and review.
+
+## Citation decisions
+
+- `VERIFIED`: authoritative metadata matches; no additional action is required.
+- `MISMATCH`: a DOI or arXiv identifier resolves but conflicts with the cited title, year, or author; correct it and rerun.
+- `UNVERIFIED`: lookup failed or no reliable match was found; do not call it hallucinated. Add authoritative manual evidence to G6.

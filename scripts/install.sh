@@ -10,9 +10,9 @@ MODE="install"
 case "${1:-}" in
   "") ;;
   --dry-run) MODE="dry-run" ;;
-  --uninstall) MODE="uninstall" ;;
   --check) MODE="check" ;;
-  *) echo "usage: $0 [--dry-run|--uninstall|--check]" >&2; exit 2 ;;
+  --uninstall) echo "automatic uninstall is disabled; removal requires an exact target list, backup, recoverability statement, and explicit user approval" >&2; exit 2 ;;
+  *) echo "usage: $0 [--dry-run|--check]" >&2; exit 2 ;;
 esac
 
 [[ -f "$SOURCE_DIR/SKILL.md" ]] || { echo "missing skill source" >&2; exit 1; }
@@ -24,15 +24,38 @@ done
 
 for target in "${targets[@]}"; do
   if [[ "$MODE" == "check" ]]; then
-    [[ -L "$target" ]] && echo "linked $target -> $(readlink "$target")" || echo "missing $target"
-  elif [[ "$MODE" == "uninstall" ]]; then
-    if [[ -L "$target" ]]; then rm "$target"; echo "removed $target"; elif [[ -e "$target" ]]; then echo "refusing non-symlink: $target" >&2; exit 1; fi
+    if [[ -L "$target" ]]; then
+      current_target="$(readlink "$target")"
+      if [[ "$current_target" == "$SOURCE_DIR" ]]; then
+        echo "linked $target -> $current_target"
+      else
+        echo "mismatch $target -> $current_target (expected $SOURCE_DIR)" >&2
+        exit 1
+      fi
+    elif [[ -e "$target" ]]; then
+      echo "occupied $target" >&2
+      exit 1
+    else
+      echo "missing $target"
+    fi
   elif [[ "$MODE" == "dry-run" ]]; then
-    echo "would link $target -> $SOURCE_DIR"
+    if [[ -L "$target" && "$(readlink "$target")" == "$SOURCE_DIR" ]]; then
+      echo "already linked $target -> $SOURCE_DIR"
+    elif [[ -e "$target" || -L "$target" ]]; then
+      echo "would refuse existing target $target" >&2
+    else
+      echo "would link $target -> $SOURCE_DIR"
+    fi
   else
     mkdir -p "$(dirname "$target")"
-    if [[ -e "$target" && ! -L "$target" ]]; then echo "refusing to replace non-symlink: $target" >&2; exit 1; fi
-    ln -sfn "$SOURCE_DIR" "$target"
-    echo "linked $target -> $SOURCE_DIR"
+    if [[ -L "$target" && "$(readlink "$target")" == "$SOURCE_DIR" ]]; then
+      echo "already linked $target -> $SOURCE_DIR"
+    elif [[ -e "$target" || -L "$target" ]]; then
+      echo "refusing to replace existing target: $target" >&2
+      exit 1
+    else
+      ln -s "$SOURCE_DIR" "$target"
+      echo "linked $target -> $SOURCE_DIR"
+    fi
   fi
 done

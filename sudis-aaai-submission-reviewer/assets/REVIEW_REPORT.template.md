@@ -36,3 +36,9 @@ State the problem, method, evidence, and claimed contribution in 3--5 factual se
 ## Meta-review
 
 State the decisive reasons for the verdict, the smallest revision package that changes the recommendation, and which claims should be narrowed if time is insufficient.
+
+## Defense Board
+
+| Priority | Reviewer question | Current evidence | Vulnerability | Minimum fix | Defensible answer | Residual risk |
+|---|---|---|---|---|---|---|
+| High | | | | | | |

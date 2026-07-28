@@ -35,7 +35,7 @@ Ask whether the first page explains the problem, method, and measured outcome, c
 
 ### 5. Reproducibility, scope, and limitations
 
-Ask whether default parameters, data splits, preprocessing, compute, and stopping criteria are recoverable; whether scale and robustness are demonstrated; and whether limitations and failure cases match the claimed deployment scope.
+Ask whether default parameters, data splits, preprocessing, compute, and stopping criteria are recoverable; whether cited work is real and accurately characterized; whether scale and robustness are demonstrated; and whether limitations and failure cases match the claimed deployment scope.
 
 ## Attack patterns derived from rebuttal case studies
 
@@ -53,6 +53,7 @@ The following patterns were abstracted from successful NeurIPS, ICML, and KDD re
 | Generalization gap | Do results cover only a favorable dataset, model, task, or scale? | Additional representative setting or a narrowed scope claim. |
 | Anomalous result | Why does a smaller budget, weaker baseline, or unexpected metric win? | Diagnosis, corrected protocol, or explicit limitation. |
 | Overclaim | Does the abstract claim consistency, superiority, or generality that tables do not support? | Exact qualification, task-wise reporting, and failure analysis. |
+| Citation integrity | Does each cited identifier resolve to the stated paper, and does the prose characterize it accurately? | DOI, publisher, proceedings, or arXiv metadata plus a context check. |
 | Opaque presentation | Can the reader decode metrics, symbols, and visual comparisons quickly? | Defined notation, improved caption or table design, and an explanatory figure. |
 
 ## Rating and readiness

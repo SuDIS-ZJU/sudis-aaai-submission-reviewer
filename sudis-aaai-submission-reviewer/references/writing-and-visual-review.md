@@ -16,6 +16,13 @@ Use neutral verbs: propose, introduce, show, report, observe, measure, and compa
 - Explain anomalous comparisons instead of hiding them.
 - Treat missing strong baselines, unfair resource budgets, missing ablations, and unsupported causality as reviewer-facing risks.
 
+## Citation integrity
+
+- Check every active citation key against the active BibTeX files.
+- Treat a resolved DOI or arXiv metadata conflict as a must-fix error.
+- Treat an inconclusive lookup as `UNVERIFIED`, not a hallucination claim.
+- Record publisher, DOI, proceedings, or arXiv evidence for each manually verified entry.
+
 ## Figure and table review
 
 - The first sentence of a caption states the finding, then defines setup, metrics, abbreviations, and caveats.

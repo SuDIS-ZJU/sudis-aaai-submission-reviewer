@@ -35,3 +35,9 @@ Verified on 2026-07-27. Recheck the official pages before a final verdict.
 - Every appendix section must be lettered and explicitly referenced from main text.
 - Use vector output for diagrams, architecture figures, and plots. Raster examples may be used only when inherently photographic or frame-based and must be high resolution.
 - Use no em dash or AI-tone/hype wording. Qualify all comparative claims with setting and evidence.
+
+## Automated font interpretation
+
+- A confirmed Type 3 font or `emb=no` row from `pdffonts` is an official format failure.
+- `Identity-H` is not sufficient evidence by itself to locate prohibited content. Block G5 for manual confirmation instead of automatically failing it.
+- Do not infer figure-internal point size from font metadata. Confirm suspected small text on the rendered page and record the exact figure or table.
